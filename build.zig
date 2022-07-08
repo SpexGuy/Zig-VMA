@@ -86,12 +86,14 @@ pub fn linkVma(object: *LibExeObjStep, vk_root_file: []const u8, mode: std.built
         .source = .{
             .path = joinFromThisDir(allocator, "vma.zig"),
         },
-        .dependencies = &[_]std.build.Pkg{.{
-            .name = "vk",
-            .source = .{
-                .path = vk_root_file,
-            },
-        }},
+        .dependencies = &[_]std.build.Pkg{
+            .{
+                .name = "vk",
+                .source =.{
+                    .path = vk_root_file,
+                },
+            }
+        },
     });
     object.linkLibC();
     if (target.getAbi() != .msvc) {
