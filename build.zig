@@ -77,13 +77,15 @@ pub fn linkVma(object: *LibExeObjStep, vk_root_file: []const u8, mode: std.built
     object.addIncludeDir("VulkanMemoryAllocator/src/");
     object.addPackage(std.build.Pkg{
         .name = "vma",
-        .path = "vma.zig",
-        .dependencies = &[_]std.build.Pkg{
-            .{
-                .name = "vk",
-                .path = vk_root_file,
-            }
+        .source = .{
+            .path = "vma.zig",
         },
+        .dependencies = &[_]std.build.Pkg{.{
+            .name = "vk",
+            .source = .{
+                .path = vk_root_file,
+            },
+        }},
     });
     object.linkLibC();
     if (target.getAbi() != .msvc) {
