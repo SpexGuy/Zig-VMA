@@ -67,18 +67,24 @@ fn getConfigArgs(comptime config: vma_config.Config) []const []const u8 {
     }
 }
 
+fn joinFromThisDir(allocator: std.mem.Allocator, rel_path: []const u8) []const u8 {
+    const dirname = std.fs.path.dirname(@src().file) orelse ".";
+    return std.fs.path.join(allocator, &.{ dirname, rel_path }) catch unreachable;
+}
+
 pub fn linkVma(object: *LibExeObjStep, vk_root_file: []const u8, mode: std.builtin.Mode, target: std.zig.CrossTarget) void {
     const commonArgs = &[_][]const u8 { "-std=c++14" };
     const releaseArgs = &[_][]const u8 { } ++ commonArgs ++ comptime getConfigArgs(vma_config.releaseConfig);
     const debugArgs = &[_][]const u8 { } ++ commonArgs ++ comptime getConfigArgs(vma_config.debugConfig);
+    const allocator = object.builder.allocator;
     const args = if (mode == .Debug) debugArgs else releaseArgs;
 
-    object.addCSourceFile("VulkanMemoryAllocator/src/VmaUsage.cpp", args);
-    object.addIncludeDir("VulkanMemoryAllocator/src/");
+    object.addCSourceFile(joinFromThisDir(allocator, "VulkanMemoryAllocator/src/VmaUsage.cpp"), args);
+    object.addIncludeDir(joinFromThisDir(allocator, "VulkanMemoryAllocator/src/"));
     object.addPackage(std.build.Pkg{
         .name = "vma",
         .source = .{
-            .path = "vma.zig",
+            .path = joinFromThisDir(allocator, "vma.zig"),
         },
         .dependencies = &[_]std.build.Pkg{.{
             .name = "vk",
