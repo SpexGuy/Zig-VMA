@@ -1,7 +1,37 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 const LibExeObjStep = std.build.LibExeObjStep;
+const Pkg = std.build.Pkg;
 const vma_config = @import("vma_config.zig");
+const version: std.SemanticVersion = @import("builtin").zig_version;
+const old_pkg_structure = version.order(std.SemanticVersion.parse("0.9.1") catch unreachable) != .gt;
+
+// @src() is only allowed inside of a function, so we need this wrapper
+fn srcFile() []const u8 { return @src().file; }
+const sep = std.fs.path.sep_str;
+
+const zig_vma_path = std.fs.path.dirname(srcFile()).?;
+const zig_vma_file = zig_vma_path ++ sep ++ "vma.zig";
+
+pub fn pkg(b: *Builder, vk_root_file: []const u8) Pkg {
+    const allocator = b.allocator;
+    return if (old_pkg_structure) Pkg{
+        .name = "vma",
+        .path = .{ .path = zig_vma_file },
+        .dependencies = allocator.dupe(Pkg, &[_]Pkg{ .{
+            .name = "vk",
+            .path = .{ .path = vk_root_file },
+        } }) catch unreachable,
+    } else Pkg{
+        .name = "vma",
+        .source = .{ .path = zig_vma_file },
+        .dependencies = allocator.dupe(Pkg, &[_]Pkg{ .{
+            .name = "vk",
+            .source = .{ .path = vk_root_file },
+        } }) catch unreachable,
+    };
+}
+
 
 fn getConfigArgs(comptime config: vma_config.Config) []const []const u8 {
     comptime {
@@ -67,29 +97,24 @@ fn getConfigArgs(comptime config: vma_config.Config) []const []const u8 {
     }
 }
 
-pub fn linkVma(object: *LibExeObjStep, vk_root_file: []const u8, mode: std.builtin.Mode, target: std.zig.CrossTarget) void {
+pub fn link(object: *LibExeObjStep, vk_root_file: []const u8, mode: std.builtin.Mode, target: std.zig.CrossTarget) void {
+    linkWithoutPkg(object, mode, target);
+    object.addPackage(pkg(object.builder, vk_root_file));
+}
+
+pub fn linkWithoutPkg(object: *LibExeObjStep, mode: std.builtin.Mode, target: std.zig.CrossTarget) void {
     const commonArgs = &[_][]const u8 { "-std=c++14" };
     const releaseArgs = &[_][]const u8 { } ++ commonArgs ++ comptime getConfigArgs(vma_config.releaseConfig);
     const debugArgs = &[_][]const u8 { } ++ commonArgs ++ comptime getConfigArgs(vma_config.debugConfig);
     const args = if (mode == .Debug) debugArgs else releaseArgs;
 
-    object.addCSourceFile("VulkanMemoryAllocator/src/VmaUsage.cpp", args);
-    object.addIncludeDir("VulkanMemoryAllocator/src/");
-    object.addPackage(std.build.Pkg{
-        .name = "vma",
-        .path = "vma.zig",
-        .dependencies = &[_]std.build.Pkg{
-            .{
-                .name = "vk",
-                .path = vk_root_file,
-            }
-        },
-    });
+    object.addCSourceFile(zig_vma_path ++ sep ++ "VulkanMemoryAllocator/src/VmaUsage.cpp", args);
+    object.addIncludeDir(zig_vma_path ++ sep ++ "VulkanMemoryAllocator/src/");
     object.linkLibC();
     if (target.getAbi() != .msvc) {
         // MSVC can't link libc++, it causes duplicate symbol errors.
         // But it's needed for other targets.
-        object.linkSystemLibrary("c++");
+        object.linkLibCpp();
     }
 }
 
@@ -106,9 +131,14 @@ pub fn build(b: *Builder) void {
 
     const lib = b.addTest("test/test.zig");
     lib.addPackagePath("vk", "test/vulkan_core.zig");
-    linkVma(lib, "test/vulkan_core.zig", mode, target);
-    lib.linkSystemLibrary("test/vulkan-1");
+    lib.setBuildMode(mode);
     lib.setTarget(target);
+    link(lib, "test/vulkan_core.zig", mode, target);
+    if (target.getOs().tag == .windows) {
+        lib.addObjectFile("test/vulkan-1.lib");
+    } else {
+        lib.linkSystemLibrary("vulkan");
+    }
     
     const test_step = b.step("test", "run tests");
     test_step.dependOn(&lib.step);

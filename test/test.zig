@@ -27,37 +27,29 @@ test "vma" {
         .physicalDevice = physDevice,
         .device = device,
         .frameInUseCount = 3,
+        .pVulkanFunctions = &functions,
     });
     defer allocator.destroy();
 }
 
-// compile everything
-
-comptime {
+test "Compile everything" {
     @setEvalBranchQuota(10000);
-    refAllDeclsRecursive(vma);
+    compileEverything(vma);
 }
 
-fn refAllDeclsRecursive(comptime T: type) void {
-    comptime {
-        switch (@typeInfo(T)) {
-            .Struct => |info| refDeclsList(T, info.decls),
-            .Union => |info| refDeclsList(T, info.decls),
-            .Enum => |info| refDeclsList(T, info.decls),
-            .Opaque => |info| refDeclsList(T, info.decls),
-            else => {},
-        }
-    }
-}
-
-fn refDeclsList(comptime T: type, comptime decls: []const std.builtin.TypeInfo.Declaration) void {
-    for (decls) |decl| {
+fn compileEverything(comptime Outer: type) void {
+    inline for (comptime std.meta.declarations(Outer)) |decl| {
         if (decl.is_pub) {
-            _ = @field(T, decl.name);
-            switch (decl.data) {
-                .Type => |SubType| refAllDeclsRecursive(SubType),
-                .Var => |Type| {},
-                .Fn => |fn_decl| {},
+            const T = @TypeOf(@field(Outer, decl.name));
+            if (T == type) {
+                switch (@typeInfo(@field(Outer, decl.name))) {
+                    .Struct,
+                    .Enum,
+                    .Union,
+                    .Opaque,
+                    => compileEverything(@field(Outer, decl.name)),
+                    else => {},
+                }
             }
         }
     }
