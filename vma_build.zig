@@ -103,13 +103,12 @@ pub fn link(object: *LibExeObjStep, vk_root_file: []const u8, mode: std.builtin.
 }
 
 pub fn linkWithoutPkg(object: *LibExeObjStep, mode: std.builtin.Mode, target: std.zig.CrossTarget) void {
-    const commonArgs = &[_][]const u8 { "-std=c++14" };
+    const commonArgs = &[_][]const u8 { "-std=c++14", "-DVMA_IMPLEMENTATION" };
     const releaseArgs = &[_][]const u8 { } ++ commonArgs ++ comptime getConfigArgs(vma_config.releaseConfig);
     const debugArgs = &[_][]const u8 { } ++ commonArgs ++ comptime getConfigArgs(vma_config.debugConfig);
     const args = if (mode == .Debug) debugArgs else releaseArgs;
 
-    object.addCSourceFile(zig_vma_path ++ sep ++ "VulkanMemoryAllocator/src/VmaUsage.cpp", args);
-    object.addIncludeDir(zig_vma_path ++ sep ++ "VulkanMemoryAllocator/src/");
+    object.addCSourceFile(zig_vma_path ++ sep ++ "vk_mem_alloc.cpp", args);
     object.linkLibC();
     if (target.getAbi() != .msvc) {
         // MSVC can't link libc++, it causes duplicate symbol errors.

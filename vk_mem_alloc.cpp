@@ -137,7 +137,7 @@ Note on language: This library is written in C++, but has C-compatible interface
 Thus you can include and use vk_mem_alloc.h in C or C++ code, but full
 implementation with `VMA_IMPLEMENTATION` macro must be compiled as C++, NOT as C.
 
-Please note that this library includes header `<vulkan/vulkan.h>`, which in turn
+Please note that this library includes header `"vulkan/vulkan.h"`, which in turn
 includes `<windows.h>` on Windows. If you need some specific macros defined
 before including these headers (like `WIN32_LEAN_AND_MEAN` or
 `WINVER` for Windows, `VK_USE_PLATFORM_WIN32_KHR` for Vulkan), you must define
@@ -1771,7 +1771,7 @@ available through VmaAllocatorCreateInfo::pRecordSettings.
 #endif
 
 #ifndef VULKAN_H_
-    #include <vulkan/vulkan.h>
+    #include "vulkan/vulkan.h"
 #endif
 
 #if VMA_RECORDING_ENABLED
