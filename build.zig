@@ -27,7 +27,7 @@ pub fn build(b: *std.build.Builder) void {
 
     // link vma
     vma_build.link(tests, "test/vulkan_core.zig", mode, target);
-    
+
     const test_step = b.step("test", "run tests");
     test_step.dependOn(&tests.step);
 }

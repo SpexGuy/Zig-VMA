@@ -1104,7 +1104,7 @@ pub const VulkanFunctions = extern struct {
     pub fn init(
         inst: vk.Instance,
         device: vk.Device,
-        vkGetInstanceProcAddr: fn(vk.Instance, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction
+        vkGetInstanceProcAddr: fn(vk.Instance, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction,
     ) VulkanFunctions {
         const vkGetDeviceProcAddrPtr = vkGetInstanceProcAddr(inst, "vkGetDeviceProcAddr")
             orelse @panic("Couldn't fetch vkGetDeviceProcAddr: vkGetInstanceProcAddr returned null.");
