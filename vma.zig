@@ -39,7 +39,7 @@ pub const CallConv = .C;
 ///
 /// It is recommended to create just one object of this type per `Device` object,
 /// right after Vulkan is initialized and keep it alive until before Vulkan device is destroyed.
-pub const Allocator = extern enum(usize) {
+pub const Allocator = enum(usize) {
     Null = 0,
     _,
 
@@ -508,7 +508,7 @@ pub const Allocator = extern enum(usize) {
     /// If the flag was not used, the value of pointer `pUserData` is just copied to
     /// allocation's `pUserData`. It is opaque, so you can use it however you want - e.g.
     /// as a pointer, ordinal number or some handle to you own data.
-    /// fn setAllocationUserData(allocator: Allocator, allocation: Allocation, pUserData: ?*c_void) void
+    /// fn setAllocationUserData(allocator: Allocator, allocation: Allocation, pUserData: ?*anyopaque) void
     pub const setAllocationUserData = vmaSetAllocationUserData;
 
     /// \brief Creates new allocation that is in lost state from the beginning.
@@ -564,7 +564,7 @@ pub const Allocator = extern enum(usize) {
     /// If the allocation is made from a memory types that is not `HOST_COHERENT`,
     /// you also need to use InvalidateAllocation() / FlushAllocation(), as required by Vulkan specification.
     pub fn mapMemory(allocator: Allocator, allocation: Allocation, comptime T: type) ![*]T {
-        var data: *c_void = undefined;
+        var data: *anyopaque = undefined;
         const rc = vmaMapMemory(allocator, allocation, &data);
         if (@enumToInt(rc) >= 0) return @intToPtr([*]T, @ptrToInt(data));
         return switch (rc) {
@@ -753,7 +753,7 @@ pub const Allocator = extern enum(usize) {
     ///
     /// If `pNext` is not null, #Allocator object must have been created with #VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT flag
     /// or with AllocatorCreateInfo::vulkanApiVersion `== vk.API_VERSION_1_1`. Otherwise the call fails.
-    pub fn bindBufferMemory2(allocator: Allocator, allocation: Allocation, allocationLocalOffset: vk.DeviceSize, buffer: vk.Buffer, pNext: ?*const c_void) !void {
+    pub fn bindBufferMemory2(allocator: Allocator, allocation: Allocation, allocationLocalOffset: vk.DeviceSize, buffer: vk.Buffer, pNext: ?*const anyopaque) !void {
         const rc = vmaBindBufferMemory2(allocator, allocation, allocationLocalOffset, buffer, pNext);
         if (@enumToInt(rc) >= 0) return;
         return switch (rc) {
@@ -794,7 +794,7 @@ pub const Allocator = extern enum(usize) {
     ///
     /// If `pNext` is not null, #Allocator object must have been created with #VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT flag
     /// or with AllocatorCreateInfo::vulkanApiVersion `== vk.API_VERSION_1_1`. Otherwise the call fails.
-    pub fn bindImageMemory2(allocator: Allocator, allocation: Allocation, allocationLocalOffset: vk.DeviceSize, image: vk.Image, pNext: ?*const c_void) !void {
+    pub fn bindImageMemory2(allocator: Allocator, allocation: Allocation, allocationLocalOffset: vk.DeviceSize, image: vk.Image, pNext: ?*const anyopaque) !void {
         const rc = vmaBindImageMemory2(allocator, allocation, allocationLocalOffset, image, pNext);
         if (@enumToInt(rc) >= 0) return;
         return switch (rc) {
@@ -969,7 +969,7 @@ pub const AllocatorCreateFlags = packed struct {
     /// \brief Allocator and all objects created from it will not be synchronized internally, so you must guarantee they are used from only one thread at a time or synchronized externally by you.
     ///
     /// Using this flag may increase performance because internal mutexes are not used.
-    externallySynchronized: bool align(4) = false,
+    externallySynchronized: bool = false,
 
     /// \brief Enables usage of vk.KHR_dedicated_allocation extension.
     ///
@@ -1077,8 +1077,8 @@ pub const VulkanFunctions = extern struct {
         comptime T: type,
         inst: vk.Instance,
         device: vk.Device,
-        vkGetInstanceProcAddr: fn(vk.Instance, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction,
-        vkGetDeviceProcAddr: fn(vk.Device, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction,
+        vkGetInstanceProcAddr: fn (vk.Instance, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction,
+        vkGetDeviceProcAddr: fn (vk.Device, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction,
     ) T {
         if (@typeInfo(T) != .Struct) return undefined;
         var value: T = undefined;
@@ -1086,11 +1086,11 @@ pub const VulkanFunctions = extern struct {
             if (comptime std.mem.startsWith(u8, field.name, "vk")) {
                 if (comptime isDeviceFunc(field.field_type)) {
                     const func = vkGetDeviceProcAddr(device, @ptrCast([*:0]const u8, field.name.ptr));
-                    const resolved = func orelse @panic("Couldn't fetch vk device function "++field.name);
+                    const resolved = func orelse @panic("Couldn't fetch vk device function " ++ field.name);
                     @field(value, field.name) = @ptrCast(field.field_type, resolved);
                 } else {
                     const func = vkGetInstanceProcAddr(inst, @ptrCast([*:0]const u8, field.name.ptr));
-                    const resolved = func orelse @panic("Couldn't fetch vk instance function "++field.name);
+                    const resolved = func orelse @panic("Couldn't fetch vk instance function " ++ field.name);
                     @field(value, field.name) = @ptrCast(field.field_type, resolved);
                 }
             } else {
@@ -1100,14 +1100,9 @@ pub const VulkanFunctions = extern struct {
         return value;
     }
 
-    pub fn init(
-        inst: vk.Instance,
-        device: vk.Device,
-        vkGetInstanceProcAddr: fn(vk.Instance, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction
-    ) VulkanFunctions {
-        const vkGetDeviceProcAddrPtr = vkGetInstanceProcAddr(inst, "vkGetDeviceProcAddr")
-            orelse @panic("Couldn't fetch vkGetDeviceProcAddr: vkGetInstanceProcAddr returned null.");
-        const vkGetDeviceProcAddr = @ptrCast(fn(vk.Device, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction, vkGetDeviceProcAddrPtr);
+    pub fn init(inst: vk.Instance, device: vk.Device, vkGetInstanceProcAddr: fn (vk.Instance, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction) VulkanFunctions {
+        const vkGetDeviceProcAddrPtr = vkGetInstanceProcAddr(inst, "vkGetDeviceProcAddr") orelse @panic("Couldn't fetch vkGetDeviceProcAddr: vkGetInstanceProcAddr returned null.");
+        const vkGetDeviceProcAddr = @ptrCast(fn (vk.Device, [*:0]const u8) callconv(vk.CallConv) ?vk.PFN_VoidFunction, vkGetDeviceProcAddrPtr);
         return loadRecursive(VulkanFunctions, inst, device, vkGetInstanceProcAddr, vkGetDeviceProcAddr);
     }
 };
@@ -1296,9 +1291,9 @@ pub const Budget = extern struct {
 /// Call function DestroyPool() to destroy it.
 ///
 /// For more information see [Custom memory pools](@ref choosing_memory_type_custom_memory_pools).
-pub const Pool = extern enum(usize) { Null = 0, _ };
+pub const Pool = enum(usize) { Null = 0, _ };
 
-pub const MemoryUsage = extern enum(u32) {
+pub const MemoryUsage = enum(u32) {
     /// No intended memory usage specified.
     /// Use other members of AllocationCreateInfo to specify your requirements.
     unknown = 0,
@@ -1490,7 +1485,7 @@ pub const AllocationCreateInfo = extern struct {
     /// If #AllocationCreateFlags.userDataCopyString is true, it must be either
     /// null or pointer to a null-terminated string. The string will be then copied to
     /// internal buffer, so it doesn't need to be valid after allocation call.
-    pUserData: ?*c_void = null,
+    pUserData: ?*anyopaque = null,
 };
 
 /// Flags to be passed as PoolCreateInfo::flags.
@@ -1634,7 +1629,7 @@ pub const PoolStats = extern struct {
 ///
 /// Some kinds allocations can be in lost state.
 /// For more information, see [Lost allocations](@ref lost_allocations).
-pub const Allocation = extern enum(usize) { Null = 0, _ };
+pub const Allocation = enum(usize) { Null = 0, _ };
 
 /// \brief Parameters of #Allocation objects, that can be retrieved using function GetAllocationInfo().
 pub const AllocationInfo = extern struct {
@@ -1665,11 +1660,11 @@ pub const AllocationInfo = extern struct {
     ///
     /// It can change after call to MapMemory(), UnmapMemory().
     /// It can also change after call to Defragment() if this allocation is passed to the function.
-    pMappedData: ?*c_void,
+    pMappedData: ?*anyopaque,
     /// \brief Custom general-purpose pointer that was passed as AllocationCreateInfo::pUserData or set using SetAllocationUserData().
     ///
     /// It can change after call to SetAllocationUserData() for this allocation.
-    pUserData: ?*c_void,
+    pUserData: ?*anyopaque,
 };
 
 /// \struct DefragmentationContext
@@ -1677,7 +1672,7 @@ pub const AllocationInfo = extern struct {
 ///
 /// Fill structure #DefragmentationInfo2 and call function DefragmentationBegin() to create it.
 /// Call function DefragmentationEnd() to destroy it.
-pub const DefragmentationContext = extern enum(usize) { Null = 0, _ };
+pub const DefragmentationContext = enum(usize) { Null = 0, _ };
 
 /// Flags to be used in DefragmentationBegin(). None at the moment. Reserved for future use.
 pub const DefragmentationFlags = packed struct {
@@ -1943,7 +1938,7 @@ pub extern fn vmaTouchAllocation(
 pub extern fn vmaSetAllocationUserData(
     allocator: Allocator,
     allocation: Allocation,
-    pUserData: ?*c_void,
+    pUserData: ?*anyopaque,
 ) callconv(CallConv) void;
 
 pub extern fn vmaCreateLostAllocation(
@@ -1954,7 +1949,7 @@ pub extern fn vmaCreateLostAllocation(
 pub extern fn vmaMapMemory(
     allocator: Allocator,
     allocation: Allocation,
-    ppData: **c_void,
+    ppData: **anyopaque,
 ) callconv(CallConv) vk.Result;
 
 pub extern fn vmaUnmapMemory(
@@ -2039,7 +2034,7 @@ pub extern fn vmaBindBufferMemory2(
     allocation: Allocation,
     allocationLocalOffset: vk.DeviceSize,
     buffer: vk.Buffer,
-    pNext: ?*const c_void,
+    pNext: ?*const anyopaque,
 ) callconv(CallConv) vk.Result;
 
 pub extern fn vmaBindImageMemory(
@@ -2053,7 +2048,7 @@ pub extern fn vmaBindImageMemory2(
     allocation: Allocation,
     allocationLocalOffset: vk.DeviceSize,
     image: vk.Image,
-    pNext: ?*const c_void,
+    pNext: ?*const anyopaque,
 ) callconv(CallConv) vk.Result;
 
 pub extern fn vmaCreateBuffer(
