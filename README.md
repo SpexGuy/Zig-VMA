@@ -11,10 +11,12 @@ In your build.zig, use this to link vma to your executable:
 const vma_build = @import("path/to/vma/vma_build.zig");
 vma_build.link(exe, "path/to/vk.zig", mode, target);
 ```
+
 If you are linking vma to a package, use `pkg` to obtain a package for use in dependencies:
 ```zig
 vma_build.pkg(exe.builder, "path/to/vk.zig")
-```If you aren't using `link` to enable the vma package on your root, you will still need to link the C sources with the executable, using this:
+```
+If you aren't using `link` to enable the vma package on your root, you will still need to link the C sources with the executable, using this:
 ```zig
 vma_build.linkWithoutPkg(exe, mode, target);
 ```
