@@ -32,25 +32,7 @@ test "vma" {
     defer allocator.destroy();
 }
 
-test "Compile everything" {
+test "Reference everything" {
     @setEvalBranchQuota(10000);
-    compileEverything(vma);
-}
-
-fn compileEverything(comptime Outer: type) void {
-    inline for (comptime std.meta.declarations(Outer)) |decl| {
-        if (decl.is_pub) {
-            const T = @TypeOf(@field(Outer, decl.name));
-            if (T == type) {
-                switch (@typeInfo(@field(Outer, decl.name))) {
-                    .Struct,
-                    .Enum,
-                    .Union,
-                    .Opaque,
-                    => compileEverything(@field(Outer, decl.name)),
-                    else => {},
-                }
-            }
-        }
-    }
+    std.testing.refAllDeclsRecursive(vma);
 }
